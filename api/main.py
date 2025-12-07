@@ -3,9 +3,9 @@ import os
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
 
 from openai import OpenAI
+from pydantic import BaseModel
 
 app = FastAPI()
 openai_client = OpenAI()
@@ -20,6 +20,7 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 class ImageData(BaseModel):
     filename: str
     data: str  # base64 encoded image
+    question: str | None = None  # optional custom question
 
 
 @app.post("/upload-image/")
@@ -41,6 +42,7 @@ async def upload_image(image: ImageData):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image data: {e}")
 
+
 @app.post("/explain-image/")
 async def explain_image(image: ImageData):
     try:
@@ -61,22 +63,34 @@ async def explain_image(image: ImageData):
 
         base64_image = encode_image(file_path)
 
-        response = openai_client.responses.create(
-            model="gpt-4.1",
-            input=[
+        # Use custom question if provided, otherwise use default
+        question_text = (
+            image.question
+            if image.question
+            else "what's in this image? explain in less than 10 words"
+        )
+
+        response = openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
                 {
                     "role": "user",
                     "content": [
-                        { "type": "input_text", "text": "what's in this image?" },
                         {
-                            "type": "input_image",
-                            "image_url": f"data:image/jpeg;base64,{base64_image}",
+                            "type": "text",
+                            "text": question_text,
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            },
                         },
                     ],
                 }
             ],
         )
-        return {"message": response.output_text}
+        return {"message": response.choices[0].message.content}
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image data: {e}")

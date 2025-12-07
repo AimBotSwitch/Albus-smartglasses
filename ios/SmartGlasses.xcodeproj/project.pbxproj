@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		603F3DC12E51664C00F268FB /* CocoaAsyncSocket in Frameworks */ = {isa = PBXBuildFile; productRef = 603F3DC02E51664C00F268FB /* CocoaAsyncSocket */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		608B2EBC2E1B9DF500DB871B /* SmartGlasses.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SmartGlasses.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -36,6 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				603F3DC12E51664C00F268FB /* CocoaAsyncSocket in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +83,7 @@
 			);
 			name = SmartGlasses;
 			packageProductDependencies = (
+				603F3DC02E51664C00F268FB /* CocoaAsyncSocket */,
 			);
 			productName = SmartGlasses;
 			productReference = 608B2EBC2E1B9DF500DB871B /* SmartGlasses.app */;
@@ -107,6 +113,9 @@
 			);
 			mainGroup = 608B2EB32E1B9DF500DB871B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				603F3DBF2E51664C00F268FB /* XCRemoteSwiftPackageReference "CocoaAsyncSocket" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 608B2EBD2E1B9DF500DB871B /* Products */;
 			projectDirPath = "";
@@ -264,14 +273,17 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 745E2QWJA3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SmartGlasses/Info.plist;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Discover and connect to your Nicla Vision device on the local network.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -295,14 +307,17 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 745E2QWJA3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SmartGlasses/Info.plist;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Discover and connect to your Nicla Vision device on the local network.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -341,6 +356,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		603F3DBF2E51664C00F268FB /* XCRemoteSwiftPackageReference "CocoaAsyncSocket" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/robbiehanson/CocoaAsyncSocket";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.6.5;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		603F3DC02E51664C00F268FB /* CocoaAsyncSocket */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 603F3DBF2E51664C00F268FB /* XCRemoteSwiftPackageReference "CocoaAsyncSocket" */;
+			productName = CocoaAsyncSocket;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 608B2EB42E1B9DF500DB871B /* Project object */;
 }

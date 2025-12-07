@@ -7,5 +7,9 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs access to your microphone to convert your speech into text for asking questions about images.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>This app needs speech recognition to convert your voice commands into text for image analysis.</string>
 </dict>
 </plist>

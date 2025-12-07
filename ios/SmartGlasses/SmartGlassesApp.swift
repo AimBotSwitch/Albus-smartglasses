@@ -10,6 +10,34 @@ import UIKit
 import Combine
 
 import AVFoundation
+import Speech
+
+import CocoaAsyncSocket
+
+final class BeaconListener: NSObject, GCDAsyncUdpSocketDelegate {
+    private let port: UInt16 = 19999
+    private var sock: GCDAsyncUdpSocket!
+
+    var onURL: ((URL) -> Void)?
+
+    func start() {
+        sock = GCDAsyncUdpSocket(delegate: self, delegateQueue: .main)
+        try? sock.enableBroadcast(true)
+        try? sock.bind(toPort: port)
+        try? sock.beginReceiving()
+    }
+
+    func udpSocket(_ s: GCDAsyncUdpSocket, didReceive data: Data, fromAddress _: Data,
+                   withFilterContext _: Any?) {
+        print("Received beacon: \(String(data: data, encoding: .utf8) ?? "<binary>")")
+        guard let dict = try? JSONSerialization.jsonObject(with: data) as? [String:Any],
+              let ip = dict["ip"] as? String,
+              let port = dict["port"] as? Int,
+              let path = dict["path"] as? String
+        else { return }
+        if let url = URL(string: "http://\(ip):\(port)\(path)") { onURL?(url) }
+    }
+}
 
 private let tts = AVSpeechSynthesizer()
 
@@ -24,8 +52,118 @@ private func speak(_ text: String, lang: String = "en-US") {
     tts.speak(u)
 }
 
+final class Discovery: ObservableObject {
+    let beacon = BeaconListener()
+    @Published var lastURL: URL?
+
+    func start() {
+        beacon.onURL = { [weak self] url in
+            DispatchQueue.main.async { self?.lastURL = url }
+        }
+        beacon.start()
+    }
+}
+
+// MARK: - Speech Recognizer
+final class SpeechRecognizer: ObservableObject {
+    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private let audioEngine = AVAudioEngine()
+
+    @Published var recognizedText = ""
+    @Published var isRecording = false
+    @Published var isProcessing = false
+
+    var onQuestionDetected: ((String) -> Void)?
+
+    func requestAuthorization() {
+        SFSpeechRecognizer.requestAuthorization { status in
+            DispatchQueue.main.async {
+                print("Speech authorization: \(status.rawValue)")
+            }
+        }
+    }
+
+    func startRecording() {
+        guard !audioEngine.isRunning else { return }
+
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognizedText = ""
+
+        let audioSession = AVAudioSession.sharedInstance()
+        try? audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+        try? audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+
+        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+        guard let recognitionRequest = recognitionRequest else { return }
+        recognitionRequest.shouldReportPartialResults = true
+
+        let inputNode = audioEngine.inputNode
+
+        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+            guard let self = self else { return }
+
+            if let result = result {
+                DispatchQueue.main.async {
+                    self.recognizedText = result.bestTranscription.formattedString
+
+                    // Check if it's a question when final result
+                    if result.isFinal {
+                        self.checkForQuestion(self.recognizedText)
+                    }
+                }
+            }
+
+            if error != nil || result?.isFinal == true {
+                self.audioEngine.stop()
+                inputNode.removeTap(onBus: 0)
+                self.recognitionRequest = nil
+                self.recognitionTask = nil
+                DispatchQueue.main.async {
+                    self.isRecording = false
+                }
+            }
+        }
+
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+            self.recognitionRequest?.append(buffer)
+        }
+
+        audioEngine.prepare()
+        try? audioEngine.start()
+
+        isRecording = true
+    }
+
+    func stopRecording() {
+        audioEngine.stop()
+        recognitionRequest?.endAudio()
+        isRecording = false
+    }
+
+    private func checkForQuestion(_ text: String) {
+        let lowercased = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Check if it's a question (ends with ?, starts with question words, or contains question patterns)
+        let questionWords = ["what", "where", "when", "who", "why", "how", "is", "are", "can", "could", "would", "should", "do", "does", "did"]
+        let startsWithQuestion = questionWords.contains { lowercased.hasPrefix($0 + " ") }
+        let endsWithQuestion = lowercased.hasSuffix("?")
+
+        if startsWithQuestion || endsWithQuestion || lowercased.contains(" or ") {
+            isProcessing = true
+            onQuestionDetected?(text)
+        }
+    }
+}
+
 struct MJPEGStreamView: View {
-    @StateObject private var streamer = MJPEGStreamer(urlString: "http://192.168.86.46:8081")
+    @StateObject private var streamer = MJPEGStreamer(urlString: "http://192.168.86.149:8081")
+    @StateObject private var speechRecognizer = SpeechRecognizer()
+    @StateObject var d = Discovery()
+    @Environment(\.openURL) var openURL
 
     var body: some View {
         ZStack {
@@ -35,21 +173,71 @@ struct MJPEGStreamView: View {
                 ProgressView("Connecting…")
             }
         }
-        .onAppear { streamer.start() }
+        .onAppear {
+            d.start()
+            streamer.start()
+            speechRecognizer.requestAuthorization()
+
+            // Set up auto-capture when question is detected
+            speechRecognizer.onQuestionDetected = { [weak speechRecognizer] question in
+                captureAndSend(with: question)
+                speechRecognizer?.stopRecording()
+                // Clear text after a short delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    speechRecognizer?.recognizedText = ""
+                    speechRecognizer?.isProcessing = false
+                }
+            }
+        }
+        .onChange(of: d.lastURL) { if let u = $0 { print(u) } }
         .safeAreaInset(edge: .bottom) {
-            HStack {
-                Button {
-                    captureAndSend()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "paperplane.circle.fill")
-                        Text("Capture & Explain")
+            VStack(spacing: 12) {
+                // Show recognized text or processing state
+                if speechRecognizer.isProcessing {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(0.8)
+                        Text("Processing: \(speechRecognizer.recognizedText)")
+                            .font(.subheadline)
                     }
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 14)
-                    .background(Color.black.opacity(0.55))
+                    .padding(8)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue.opacity(0.7))
                     .foregroundStyle(.white)
-                    .clipShape(Capsule())
+                    .cornerRadius(8)
+                    .padding(.horizontal)
+                } else if !speechRecognizer.recognizedText.isEmpty {
+                    Text(speechRecognizer.recognizedText)
+                        .font(.subheadline)
+                        .padding(8)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.black.opacity(0.7))
+                        .foregroundStyle(.white)
+                        .cornerRadius(8)
+                        .padding(.horizontal)
+                }
+
+                HStack(spacing: 16) {
+                    // Voice button
+                    Button {
+                        if speechRecognizer.isRecording {
+                            speechRecognizer.stopRecording()
+                        } else {
+                            speechRecognizer.startRecording()
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic")
+                            Text(speechRecognizer.isRecording ? "Listening..." : "Ask Question")
+                        }
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 14)
+                        .background(speechRecognizer.isRecording ? Color.red.opacity(0.8) : Color.black.opacity(0.55))
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+                    }
+                    .disabled(speechRecognizer.isProcessing)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -58,18 +246,24 @@ struct MJPEGStreamView: View {
         }
     }
 
-    private func captureAndSend() {
+    private func captureAndSend(with question: String) {
         guard let img = streamer.image else { return }
         let ts = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-        uploadUIImage(img, filename: "frame-\(ts).jpg")
+        uploadUIImage(img, filename: "frame-\(ts).jpg", question: question)
     }
 }
 
-func uploadUIImage(_ image: UIImage, filename: String) {
-    guard let url = URL(string: "http://localhost:8000/explain-image/") else { return }
+func uploadUIImage(_ image: UIImage, filename: String, question: String? = nil) {
+    print("> Uploading image with question \(String(describing: question))...\n")
+    guard let url = URL(string: "http://192.168.86.38:8000/explain-image/") else { return }
     guard let imageData = image.jpegData(compressionQuality: 0.8) else { return }
     let base64String = imageData.base64EncodedString()
-    let json: [String: String] = ["filename": filename, "data": base64String]
+
+    var json: [String: String] = ["filename": filename, "data": base64String]
+    if let question = question {
+        json["question"] = question
+    }
+
     guard let httpBody = try? JSONSerialization.data(withJSONObject: json) else { return }
 
     var request = URLRequest(url: url)
