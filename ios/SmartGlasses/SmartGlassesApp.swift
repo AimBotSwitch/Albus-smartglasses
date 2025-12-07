@@ -43,7 +43,7 @@ struct MJPEGStreamView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "paperplane.circle.fill")
-                        Text("Capture & Send")
+                        Text("Capture & Explain")
                     }
                     .padding(.vertical, 10)
                     .padding(.horizontal, 14)
